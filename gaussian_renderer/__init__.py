@@ -15,15 +15,38 @@ from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianR
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
 
-def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None):
+from arguments import PipelineParams
+
+def render(
+    viewpoint_camera,
+    pc                  : GaussianModel,
+    pipe                : PipelineParams,       
+    bg_color            : torch.Tensor,
+    scaling_modifier    : float = 1.0,
+    override_color      = None
+):
     """
     Render the scene. 
     
-    Background tensor (bg_color) must be on GPU!
+    args:
+        viewpoint_camera : scene.camera.Camera
+        pc               : scene.gaussian_model.GaussianModel
+        pipe             : arguments.PipelineParams
+        bg_color         : torch.Tensor
+            must be on GPU
+        scaling_modifier : float
+        override_color   : torch.Tensor
+    return : dict
+        "render" : torch.Tensor
+        "viewspace_points" : torch.Tensor
+        "visibility_filter" : torch.Tensor
+        "radii" : torch.Tensor
     """
  
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    screenspace_points = torch.zeros_like(
+        pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda"
+    ) + 0
     try:
         screenspace_points.retain_grad()
     except:
@@ -34,18 +57,18 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GaussianRasterizationSettings(
-        image_height=int(viewpoint_camera.image_height),
-        image_width=int(viewpoint_camera.image_width),
-        tanfovx=tanfovx,
-        tanfovy=tanfovy,
-        bg=bg_color,
-        scale_modifier=scaling_modifier,
-        viewmatrix=viewpoint_camera.world_view_transform,
-        projmatrix=viewpoint_camera.full_proj_transform,
-        sh_degree=pc.active_sh_degree,
-        campos=viewpoint_camera.camera_center,
-        prefiltered=False,
-        debug=pipe.debug
+        image_height    = int(viewpoint_camera.image_height),
+        image_width     = int(viewpoint_camera.image_width),
+        tanfovx         = tanfovx,
+        tanfovy         = tanfovy,
+        bg              = bg_color,
+        scale_modifier  = scaling_modifier,
+        viewmatrix      = viewpoint_camera.world_view_transform,
+        projmatrix      = viewpoint_camera.full_proj_transform,
+        sh_degree       = pc.active_sh_degree,
+        campos          = viewpoint_camera.camera_center,
+        prefiltered     = False,
+        debug           = pipe.debug
     )
 
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
@@ -59,7 +82,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     scales = None
     rotations = None
     cov3D_precomp = None
-    if pipe.compute_cov3D_python:
+    if pipe.compute_cov3D_python :
         cov3D_precomp = pc.get_covariance(scaling_modifier)
     else:
         scales = pc.get_scaling
@@ -94,7 +117,9 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
-    return {"render": rendered_image,
-            "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii}
+    return {
+        "render": rendered_image,
+        "viewspace_points": screenspace_points,
+        "visibility_filter" : radii > 0,
+        "radii": radii
+    }
