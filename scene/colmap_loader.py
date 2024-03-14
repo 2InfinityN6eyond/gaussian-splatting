@@ -22,35 +22,43 @@ BaseImage = collections.namedtuple(
 Point3D = collections.namedtuple(
     "Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"])
 CAMERA_MODELS = {
-    CameraModel(model_id=0, model_name="SIMPLE_PINHOLE", num_params=3),
-    CameraModel(model_id=1, model_name="PINHOLE", num_params=4),
-    CameraModel(model_id=2, model_name="SIMPLE_RADIAL", num_params=4),
-    CameraModel(model_id=3, model_name="RADIAL", num_params=5),
-    CameraModel(model_id=4, model_name="OPENCV", num_params=8),
-    CameraModel(model_id=5, model_name="OPENCV_FISHEYE", num_params=8),
-    CameraModel(model_id=6, model_name="FULL_OPENCV", num_params=12),
-    CameraModel(model_id=7, model_name="FOV", num_params=5),
+    CameraModel(model_id=0, model_name="SIMPLE_PINHOLE",        num_params=3),
+    CameraModel(model_id=1, model_name="PINHOLE",               num_params=4),
+    CameraModel(model_id=2, model_name="SIMPLE_RADIAL",         num_params=4),
+    CameraModel(model_id=3, model_name="RADIAL",                num_params=5),
+    CameraModel(model_id=4, model_name="OPENCV",                num_params=8),
+    CameraModel(model_id=5, model_name="OPENCV_FISHEYE",        num_params=8),
+    CameraModel(model_id=6, model_name="FULL_OPENCV",           num_params=12),
+    CameraModel(model_id=7, model_name="FOV",                   num_params=5),
     CameraModel(model_id=8, model_name="SIMPLE_RADIAL_FISHEYE", num_params=4),
-    CameraModel(model_id=9, model_name="RADIAL_FISHEYE", num_params=5),
-    CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE", num_params=12)
+    CameraModel(model_id=9, model_name="RADIAL_FISHEYE",        num_params=5),
+    CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE",   num_params=12)
 }
-CAMERA_MODEL_IDS = dict([(camera_model.model_id, camera_model)
-                         for camera_model in CAMERA_MODELS])
-CAMERA_MODEL_NAMES = dict([(camera_model.model_name, camera_model)
-                           for camera_model in CAMERA_MODELS])
-
+CAMERA_MODEL_IDS = dict([
+    (camera_model.model_id, camera_model) for camera_model in CAMERA_MODELS
+])
+CAMERA_MODEL_NAMES = dict([
+    (camera_model.model_name, camera_model) for camera_model in CAMERA_MODELS
+])
 
 def qvec2rotmat(qvec):
     return np.array([
-        [1 - 2 * qvec[2]**2 - 2 * qvec[3]**2,
-         2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
-         2 * qvec[3] * qvec[1] + 2 * qvec[0] * qvec[2]],
-        [2 * qvec[1] * qvec[2] + 2 * qvec[0] * qvec[3],
-         1 - 2 * qvec[1]**2 - 2 * qvec[3]**2,
-         2 * qvec[2] * qvec[3] - 2 * qvec[0] * qvec[1]],
-        [2 * qvec[3] * qvec[1] - 2 * qvec[0] * qvec[2],
-         2 * qvec[2] * qvec[3] + 2 * qvec[0] * qvec[1],
-         1 - 2 * qvec[1]**2 - 2 * qvec[2]**2]])
+        [
+            1 - 2 * qvec[2]**2 - 2 * qvec[3]**2,
+            2 * qvec[1] * qvec[2] - 2 * qvec[0] * qvec[3],
+            2 * qvec[3] * qvec[1] + 2 * qvec[0] * qvec[2]
+        ],
+        [
+            2 * qvec[1] * qvec[2] + 2 * qvec[0] * qvec[3],
+            1 - 2 * qvec[1]**2 - 2 * qvec[3]**2,
+            2 * qvec[2] * qvec[3] - 2 * qvec[0] * qvec[1]
+        ],
+        [
+            2 * qvec[3] * qvec[1] - 2 * qvec[0] * qvec[2],
+            2 * qvec[2] * qvec[3] + 2 * qvec[0] * qvec[1],
+            1 - 2 * qvec[1]**2 - 2 * qvec[2]**2
+        ]
+    ])
 
 def rotmat2qvec(R):
     Rxx, Ryx, Rzx, Rxy, Ryy, Rzy, Rxz, Ryz, Rzz = R.flat
@@ -58,7 +66,8 @@ def rotmat2qvec(R):
         [Rxx - Ryy - Rzz, 0, 0, 0],
         [Ryx + Rxy, Ryy - Rxx - Rzz, 0, 0],
         [Rzx + Rxz, Rzy + Ryz, Rzz - Rxx - Ryy, 0],
-        [Ryz - Rzy, Rzx - Rxz, Rxy - Ryx, Rxx + Ryy + Rzz]]) / 3.0
+        [Ryz - Rzy, Rzx - Rxz, Rxy - Ryx, Rxx + Ryy + Rzz]
+    ]) / 3.0
     eigvals, eigvecs = np.linalg.eigh(K)
     qvec = eigvecs[[3, 0, 1, 2], np.argmax(eigvals)]
     if qvec[0] < 0:

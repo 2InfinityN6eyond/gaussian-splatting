@@ -70,8 +70,17 @@ class ModelParams(ParamGroup):
 
 class PipelineParams(ParamGroup):
     def __init__(self, parser):
+
+
+        # referenced inside gaussian_renderer.render() func.
+        #
         self.convert_SHs_python = False
+
+        # referenced only inside gaussian_renderer.render() func.
+        #   if set to True,  compute 3D covariance matrix and pass to rasterizer()
+        #   if set to False, pass scale vector and rotation quaternion to rasterizer()
         self.compute_cov3D_python = False
+
         self.debug = False
         super().__init__(parser, "Pipeline Parameters")
 

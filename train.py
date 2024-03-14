@@ -22,7 +22,7 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
-try:
+try: 
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
 except ImportError:
@@ -32,22 +32,22 @@ def training(
     model_args              : ModelParams,
     optim_args              : OptimizationParams,
     pipe_args               : PipelineParams,
-    testing_iterations      : list[int],
-    saving_iterations       : list[int],
-    checkpoint_iterations   : list[int],
+    testing_iterations,     # List[int]
+    saving_iterations,      # List[int]
+    checkpoint_iterations,  # List[int]
     start_checkpoint        : str,
     debug_from              : int
 ):
     """
     args:
-        model_args: ModelParams
-        optim_args: OptimizationParams
-        pipe_args: PipelineParams
-        testing_iterations: int
-        saving_iterations: int 
-        checkpoint_iterations: int
-        start_checkpoint: int
-        debug_from: int
+        model_args              : ModelParams
+        optim_args              : OptimizationParams
+        pipe_args               : PipelineParams
+        testing_iterations      : int
+        saving_iterations       : int 
+        checkpoint_iterations   : int
+        start_checkpoint        : int
+        debug_from              : int
     """
     first_iter = 0
     tb_writer = prepare_output_and_logger(model_args)
@@ -55,6 +55,9 @@ def training(
     scene = Scene(model_args, gaussians)
     gaussians.training_setup(optim_args)
     if start_checkpoint:
+        # model_params : saved return value of GaussianModel.capture()
+        # first_iter : last saved iteration idx
+        print("Loading checkpoint from {}".format(start_checkpoint))
         (model_params, first_iter) = torch.load(start_checkpoint)
         gaussians.restore(model_params, optim_args)
 
@@ -66,9 +69,8 @@ def training(
 
     viewpoint_stack = None
     ema_loss_for_log = 0.0
-    #progress_bar = tqdm(range(first_iter, optim_args.iterations), desc="Training progress")
+    progress_bar = tqdm(range(first_iter, optim_args.iterations), desc="Training progress")
     first_iter += 1
-    progress_bar = tqdm(total=optim_args.iterations-first_iter, desc="Training progress")
     for iter_idx in range(first_iter, optim_args.iterations + 1):        
         if network_gui.conn == None:
             network_gui.try_connect()
@@ -210,13 +212,16 @@ def prepare_output_and_logger(args):
     if not args.model_path:
         if os.getenv('OAR_JOB_ID'):
             unique_str=os.getenv('OAR_JOB_ID')
+            print("found unique str :", unique_str)
         else:
             unique_str = str(uuid.uuid4())
+            print("made unique str :", unique_str)
         args.model_path = os.path.join("./output/", unique_str[0:10])
         
     # Set up output folder
     print("Output folder: {}".format(args.model_path))
     os.makedirs(args.model_path, exist_ok = True)
+    print("path exists" if os.path.exists(args.model_path) else "path does not exist")
     with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
@@ -229,16 +234,16 @@ def prepare_output_and_logger(args):
     return tb_writer
 
 def training_report(
-    tb_writer,
-    iter_idx,
-    Ll1,
-    loss,
-    l1_loss,
-    elapsed,
-    testing_iterations,   
-    scene : Scene,
-    renderFunc,
-    renderArgs
+    tb_writer           ,
+    iter_idx            ,
+    Ll1                 ,
+    loss                ,
+    l1_loss             ,
+    elapsed             ,
+    testing_iterations  ,   
+    scene               : Scene,
+    renderFunc          ,
+    renderArgs          ,
 ):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iter_idx)
@@ -248,28 +253,48 @@ def training_report(
     # Report test and samples of training set
     if iter_idx in testing_iterations:
         torch.cuda.empty_cache()
-        validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
-                              {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
+        validation_configs = (
+            {'name': 'test', 'cameras' : scene.getTestCameras()}, 
+            {'name': 'train', 'cameras' : [
+                scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)
+            ]}
+        )
 
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
-                    image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
+                    image = torch.clamp(
+                        renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0
+                    )
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if tb_writer and (idx < 5):
-                        tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iter_idx)
+                        tb_writer.add_images(
+                            config['name'] + "_view_{}/render".format(viewpoint.image_name),
+                            image[None], global_step=iter_idx
+                        )
                         if iter_idx == testing_iterations[0]:
-                            tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iter_idx)
+                            tb_writer.add_images(
+                                config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name),
+                                gt_image[None], global_step=iter_idx
+                            )
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras'])          
-                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iter_idx, config['name'], l1_test, psnr_test))
+                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(
+                    iter_idx, config['name'], l1_test, psnr_test
+                ))
                 if tb_writer:
-                    tb_writer.add_scalar(config['name'] + '/loss_viewpoint - l1_loss', l1_test, iter_idx)
-                    tb_writer.add_scalar(config['name'] + '/loss_viewpoint - psnr', psnr_test, iter_idx)
+                    tb_writer.add_scalar(
+                        config['name'] + '/loss_viewpoint - l1_loss',
+                        l1_test, iter_idx
+                    )
+                    tb_writer.add_scalar(
+                        config['name'] + '/loss_viewpoint - psnr',
+                        psnr_test, iter_idx
+                    )
 
         if tb_writer:
             tb_writer.add_histogram("scene/opacity_histogram", scene.gaussians.get_opacity, iter_idx)
@@ -300,6 +325,7 @@ if __name__ == "__main__":
     safe_state(args.quiet)
 
     # Start GUI server, configure and run training
+    print("connecting,", args.ip, args.port)
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
     training(
