@@ -223,9 +223,12 @@ class GaussianModel:
     def load_ply(self, path):
         plydata = PlyData.read(path)
 
-        xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
-                        np.asarray(plydata.elements[0]["y"]),
-                        np.asarray(plydata.elements[0]["z"])),  axis=1)
+        xyz = np.stack((
+            np.asarray(plydata.elements[0]["x"]),
+            np.asarray(plydata.elements[0]["y"]),
+            np.asarray(plydata.elements[0]["z"])),
+            axis=1
+        )
         opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
 
         features_dc = np.zeros((xyz.shape[0], 3, 1))
