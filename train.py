@@ -132,9 +132,14 @@ def training(
             viewpoint_cam, gaussians, pipe_args,
             bg_color = torch.rand((3), device="cuda") if optim_args.random_background else background
         )
+        #
         image                   = render_pkg["render"]
+        # shaep : (N, 3) : seems to be all 0
         viewspace_point_tensor  = render_pkg["viewspace_points"]
+        # shape : (N)
         visibility_filter       = render_pkg["visibility_filter"]
+        # shape : (N)
+        # if visibility_filter is True, radii always > 0
         radii                   = render_pkg["radii"]
 
         # Loss
