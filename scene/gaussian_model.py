@@ -139,20 +139,25 @@ class GaussianModel:
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
-        dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
+        dist2 = torch.clamp_min(distCUDA2(
+            torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
 
-        opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
+        opacities = inverse_sigmoid(
+            0.1 * torch.ones(
+                (fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"
+            )
+        )
 
-        self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
-        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        self._xyz           = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        self._features_dc   = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
         self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
-        self._scaling = nn.Parameter(scales.requires_grad_(True))
-        self._rotation = nn.Parameter(rots.requires_grad_(True))
-        self._opacity = nn.Parameter(opacities.requires_grad_(True))
-        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+        self._scaling       = nn.Parameter(scales.requires_grad_(True))
+        self._rotation      = nn.Parameter(rots.requires_grad_(True))
+        self._opacity       = nn.Parameter(opacities.requires_grad_(True))
+        self.max_radii2D    = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
@@ -160,21 +165,47 @@ class GaussianModel:
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
 
         l = [
-            {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
-            {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
-            {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
-            {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
-            {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
-            {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
+            {
+                'params': [self._xyz],
+                'lr': training_args.position_lr_init * self.spatial_lr_scale,
+                "name": "xyz"
+            },
+            {
+                'params': [self._features_dc],
+                'lr': training_args.feature_lr,
+                "name": "f_dc"
+            },
+            {
+                'params': [self._features_rest],
+                'lr': training_args.feature_lr / 20.0,
+                "name": "f_rest"
+            },
+            {
+                'params': [self._opacity],
+                'lr': training_args.opacity_lr,
+                "name": "opacity"
+            },
+            {
+                'params': [self._scaling],
+                'lr': training_args.scaling_lr,
+                "name": "scaling"
+            },
+            {
+                'params': [self._rotation],
+                'lr': training_args.rotation_lr,
+                "name": "rotation"
+            }
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
-        self.xyz_scheduler_args = get_expon_lr_func(lr_init=training_args.position_lr_init*self.spatial_lr_scale,
-                                                    lr_final=training_args.position_lr_final*self.spatial_lr_scale,
-                                                    lr_delay_mult=training_args.position_lr_delay_mult,
-                                                    max_steps=training_args.position_lr_max_steps)
+        self.xyz_scheduler_args = get_expon_lr_func(
+            lr_init         = training_args.position_lr_init  * self.spatial_lr_scale,
+            lr_final        = training_args.position_lr_final * self.spatial_lr_scale,
+            lr_delay_mult   = training_args.position_lr_delay_mult,
+            max_steps       = training_args.position_lr_max_steps
+        )
 
-    def update_learning_rate(self, iteration):
+    def update_learning_rate(self, iteration) :
         ''' Learning rate scheduling per step '''
         for param_group in self.optimizer.param_groups:
             if param_group["name"] == "xyz":
@@ -216,8 +247,13 @@ class GaussianModel:
         PlyData([el]).write(path)
 
     def reset_opacity(self):
-        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
-        optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
+        opacities_new = inverse_sigmoid(torch.min(
+            self.get_opacity,
+            torch.ones_like(self.get_opacity)*0.01
+        ))
+        optimizable_tensors = self.replace_tensor_to_optimizer(
+            opacities_new, "opacity"
+        )
         self._opacity = optimizable_tensors["opacity"]
 
     def load_ply(self, path):
@@ -236,7 +272,9 @@ class GaussianModel:
         features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
         features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
 
-        extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+        extra_f_names = [
+            p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")
+        ]
         extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
         assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
         features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
