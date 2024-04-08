@@ -304,6 +304,7 @@ class GaussianModel:
 
         self.active_sh_degree = self.max_sh_degree
 
+
     def replace_tensor_to_optimizer(self, tensor, name):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:

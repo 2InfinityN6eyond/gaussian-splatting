@@ -1,4 +1,4 @@
-name: gs2
+name: gs3
 channels:
   - pytorch
   - conda-forge
